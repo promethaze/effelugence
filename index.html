@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATARI // EFFELUGENCE</title>
+    <style>
+        /* Retro Arcade Styling */
+        @import url('https://googleapis.com');
+
+        body {
+            background-color: #050505;
+            color: #ff0055;
+            font-family: 'Press Start 2P', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            text-shadow: 3px 3px #00ffff;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #fff;
+            margin: 0 0 10px 0;
+            letter-spacing: 2px;
+        }
+
+        .status-text {
+            font-size: 10px;
+            color: #00ffff;
+            letter-spacing: 1px;
+            height: 20px;
+        }
+
+        /* The Game Board Matrix */
+        #game-container {
+            position: relative;
+            width: 500px;
+            height: 500px;
+            background-color: #111;
+            border: 6px dashed #ff5500;
+            box-shadow: 0 0 20px #ff5500;
+            cursor: crosshair;
+        }
+
+        /* Maze Walls */
+        .wall {
+            position: absolute;
+            background-color: #7f00ff;
+            box-shadow: inset -4px -4px 0px #4b0099;
+        }
+
+        /* Safe / Start Zone */
+        #start-zone {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #00ffaa;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #000;
+        }
+
+        /* Goal Zone */
+        #goal-zone {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #ffcc00;
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: #000;
+            animation: blink 0.5s infinite alternate;
+        }
+
+        /* Player Dot */
+        #player {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background-color: #ffffff;
+            border: 2px solid #000;
+            border-radius: 2px;
+            pointer-events: none;
+            display: none;
+            transform: translate(-7px, -7px); /* Center under mouse pointer */
+            z-index: 10;
+        }
+
+        @keyframes blink {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>EFFELUGENCE</h1>
+        <div class="status-text" id="status">HOVER OVER "START" TO BEGIN</div>
+    </div>
+
+    <div id="game-container">
+        <!-- Start & End Zones -->
+        <div id="start-zone">START</div>
+        <div id="goal-zone">WIN</div>
+
+        <!-- Custom Atari Obstacle Layout -->
+        <div class="wall" style="left: 0px; top: 100px; width: 380px; height: 30px;"></div>
+        <div class="wall" style="left: 120px; top: 200px; width: 380px; height: 30px;"></div>
+        <div class="wall" style="left: 0px; top: 300px; width: 280px; height: 30px;"></div>
+        <div class="wall" style="left: 360px; top: 300px; width: 140px; height: 30px;"></div>
+        <div class="wall" style="left: 120px; top: 400px; width: 260px; height: 30px;"></div>
+        
+        <!-- Retro Player Avatar -->
+        <div id="player"></div>
+    </div>
+
+    <script>
+        const container = document.getElementById('game-container');
+        const startZone = document.getElementById('start-zone');
+        const goalZone = document.getElementById('goal-zone');
+        const player = document.getElementById('player');
+        const statusText = document.getElementById('status');
+        const walls = document.querySelectorAll('.wall');
+
+        let isPlaying = false;
+
+        // Synth audio generation to skip needing external audio assets
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        // Initialize / Reset Game state
+        startZone.addEventListener('mouseenter', () => {
+            if (!isPlaying) {
+                isPlaying = true;
+                player.style.display = 'block';
+                statusText.innerText = "NAVIGATE THE MAZE...";
+                statusText.style.color = "#00ffff";
+                playTone(300, 'square', 0.1);
+            }
+        });
+
+        // Track cursor movements over the maze board
+        container.addEventListener('mousemove', (e) => {
+            if (!isPlaying) return;
+
+            // Constrain positions relative to container geometry
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            player.style.left = `${x}px`;
+            player.style.top = `${y}px`;
+
+            // Validate collision states against obstacles
+            walls.forEach(wall => {
+                const wRect = wall.getBoundingClientRect();
+                const pRect = player.getBoundingClientRect();
+
+                if (pRect.left < wRect.right &&
+                    pRect.right > wRect.left &&
+                    pRect.top < wRect.bottom &&
+                    pRect.bottom > wRect.top) {
+                    gameOver();
+                }
+            });
+        });
+
+        // Monitor victory conditions 
+        goalZone.addEventListener('mouseenter', () => {
+            if (isPlaying) {
+                isPlaying = false;
+                player.style.display = 'none';
+                statusText.innerText = "EFFELUGENCE ACHIEVED!";
+                statusText.style.color = "#00ffaa";
+                
+                // Classic Atari multi-tone victory sound
+                playTone(440, 'square', 0.1);
+                setTimeout(() => playTone(554, 'square', 0.1), 100);
+                setTimeout(() => playTone(659, 'square', 0.1), 200);
+                setTimeout(() => playTone(880, 'square', 0.3), 300);
+            }
+        });
+
+        // Force reset if the mouse leaves the box area entirely
+        container.addEventListener('mouseleave', () => {
+            if (isPlaying) gameOver();
+        });
+
+        function gameOver() {
+            isPlaying = false;
+            player.style.display = 'none';
+            statusText.innerText = "CRISIS! RETURN TO START";
+            statusText.style.color = "#ff0055";
+            playTone(100, 'sawtooth', 0.4); // Retro explosion noise
+        }
+    </script>
+</body>
+</html>
