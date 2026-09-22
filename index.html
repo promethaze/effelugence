@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>the angels sing with effulgence</title>
+  <title>Centered Yellow & Black Cursive 3D Orbit</title>
 
   <!-- Google Fonts Cursive Fallbacks -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,7 +59,7 @@
       will-change: transform, opacity;
     }
 
-    /* Interactivity for Riveting */
+    /* Interactivity for Riveting & Blood */
     .halo-word.interactive {
       cursor: pointer;
     }
@@ -138,8 +138,9 @@
   <!-- Screen Glitch Pulse Overlay -->
   <div id="glitch-overlay"></div>
 
-  <!-- Audio Element (Loads rivetingv2.mp3 locally) -->
+  <!-- Audio Elements -->
   <audio id="riveting-audio" src="rivetingv2.mp3" preload="auto"></audio>
+  <audio id="blood-audio" src="brenda!..mp3" preload="auto"></audio>
 
   <!-- Main Viewport Container Locked to Viewport Center -->
   <div id="main-viewport" class="fixed inset-0 flex items-center justify-center pointer-events-auto glitch-entrance">
@@ -167,8 +168,8 @@
       "paint"
     ];
 
-    // Orbit parameters sized to fit neatly on screen
-    const ORBIT_RADIUS = 230;     // Radius of orbit in pixels
+    // Orbit parameters - Wider radius to space words apart
+    const ORBIT_RADIUS = 360;     // Expanded orbit radius in pixels
     const SPEED_MULTIPLIER = 0.9; // Fixed 0.9x speed
     const BASE_ROTATION_SPEED = 0.005 * SPEED_MULTIPLIER;
     const TILT_X = 22;            // Slightly tilted perspective
@@ -176,13 +177,14 @@
     const wordsContainer = document.getElementById('words-container');
     const glitchOverlay = document.getElementById('glitch-overlay');
     const rivetingAudio = document.getElementById('riveting-audio');
+    const bloodAudio = document.getElementById('blood-audio');
 
     let currentAngle = 0;
     const wordElements = [];
 
     // Synthesizer Audio Fallback
     let audioCtx = null;
-    function playFallbackSynth() {
+    function playFallbackSynth(pitch = 110) {
       try {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -196,8 +198,8 @@
         const gain = audioCtx.createGain();
 
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(110, now);
-        osc.frequency.exponentialRampToValueAtTime(40, now + 0.6);
+        osc.frequency.setValueAtTime(pitch, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
 
         gain.gain.setValueAtTime(0.4, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
@@ -212,12 +214,15 @@
       }
     }
 
-    // Play Audio when clicking "riveting"
-    function triggerRivetingAudio() {
-      // Flash yellow glitch overlay
+    // Trigger Visual Flash Effect
+    function triggerFlash() {
       glitchOverlay.classList.add('active');
       setTimeout(() => glitchOverlay.classList.remove('active'), 180);
+    }
 
+    // Play Audio when clicking "riveting"
+    function triggerRivetingAudio() {
+      triggerFlash();
       if (rivetingAudio) {
         rivetingAudio.currentTime = 0;
         const playPromise = rivetingAudio.play();
@@ -225,11 +230,41 @@
         if (playPromise !== undefined) {
           playPromise.catch(err => {
             console.warn("Local MP3 play prevented or file missing, playing synth fallback:", err);
-            playFallbackSynth();
+            playFallbackSynth(110);
           });
         }
       } else {
-        playFallbackSynth();
+        playFallbackSynth(110);
+      }
+    }
+
+    // Play Audio when clicking "blood"
+    function triggerBloodAudio() {
+      triggerFlash();
+      if (bloodAudio) {
+        bloodAudio.currentTime = 0;
+        const playPromise = bloodAudio.play();
+
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.warn("Primary path for brenda!..mp3 failed, trying encoded path...", err);
+            
+            // Try playing via encoded URL if standard path fails
+            bloodAudio.src = "brenda%21..mp3";
+            bloodAudio.currentTime = 0;
+            
+            bloodAudio.play().catch(e => {
+              console.warn("Encoded path failed, trying secondary path...", e);
+              bloodAudio.src = "brenda%21%20..mp3";
+              bloodAudio.play().catch(e2 => {
+                console.warn("Local audio failed, playing fallback synth:", e2);
+                playFallbackSynth(85);
+              });
+            });
+          });
+        }
+      } else {
+        playFallbackSynth(85);
       }
     }
 
@@ -245,15 +280,24 @@
         el.className = 'halo-word scribble-text';
         el.textContent = wordText;
 
-        // Standardized font size scale for Sabrina cursive
-        el.style.fontSize = '2.1rem';
+        // Controlled font size scale
+        el.style.fontSize = '1.8rem';
 
-        if (wordText.toLowerCase() === 'riveting') {
+        const lowerWord = wordText.toLowerCase();
+
+        if (lowerWord === 'riveting') {
           el.classList.add('interactive');
           el.title = "Click to play rivetingv2.mp3";
           el.addEventListener('click', (e) => {
             e.stopPropagation();
             triggerRivetingAudio();
+          });
+        } else if (lowerWord === 'blood') {
+          el.classList.add('interactive');
+          el.title = "Click to play brenda!..mp3";
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            triggerBloodAudio();
           });
         }
 
@@ -287,9 +331,10 @@
         const rotY = y * cosX - z * sinX;
         const rotZ = y * sinX + z * cosX;
 
-        // Depth perspective calculation
-        const perspective = 600;
-        const scale = perspective / (perspective - rotZ);
+        // Depth perspective calculation - Controlled scaling prevents overlap
+        const perspective = 700;
+        const rawScale = perspective / (perspective - rotZ);
+        const scale = Math.min(Math.max(rawScale, 0.65), 1.1); // Scaled between 0.65 and 1.1
         const opacity = Math.max(0.2, Math.min(1, (rotZ + ORBIT_RADIUS) / (ORBIT_RADIUS * 2) + 0.25));
 
         // Center element transform (-50%, -50%)
